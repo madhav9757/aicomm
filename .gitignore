@@ -1,0 +1,53 @@
+# Node.js dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary folders
+tmp/
+temp/
+
+# Build outputs
+dist/
+build/
+
+# Optional npm cache
+.npm
+.npmrc
+
+# VSCode settings
+.vscode/
+*.code-workspace
+
+# Mac specific
+*.DS_Store
+
+# Optional coverage reports
+coverage/
+*.lcov
+
+# Optional IDE files
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# CLI-generated files (optional)
+*.bak
+*.tmp

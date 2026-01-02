@@ -1,0 +1,30 @@
+{
+  "name": "aicomm",
+  "version": "1.0.0",
+  "description": "AI-powered git commit assistant",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "aicomm": "./bin/aicomm.js"
+  },
+  "scripts": {
+    "start": "node ./bin/aicomm.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "git",
+    "cli",
+    "ai",
+    "commit"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "execa": "^9.6.1",
+    "inquirer": "^13.1.0",
+    "openai": "^6.15.0",
+    "simple-git": "^3.30.0"
+  }
+}
