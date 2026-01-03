@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import "dotenv/config";
-
+import ora from "ora";
 import { getGitStatus } from "../src/git/status.js";
 import { getGitDiff } from "../src/git/diff.js";
 import { generateCommitMessage } from "../src/ai/generateCommit.js";
@@ -10,7 +10,6 @@ import { commitChanges } from "../src/commit.js";
 import { loadConfig } from "../src/config/loadConfig.js";
 
 const program = new Command();
-
 program
   .name("aicomm")
   .description("AI-powered git commit assistant")
@@ -22,59 +21,50 @@ program
 program.parse(process.argv);
 const options = program.opts();
 
-(async () => {
+async function run() {
   try {
-    // Load user config (.aicommrc)
     const config = loadConfig();
-
-    // Get git status
     const status = await getGitStatus();
 
-    if (!status.files || status.files.length === 0) {
+    if (!status.files?.length) {
       console.log("✅ No changes to commit.");
-      process.exit(0);
+      return;
     }
 
-    // Get git diff
     const diff = await getGitDiff();
-
-    if (!diff || !diff.trim()) {
+    if (!diff?.trim()) {
       console.log("ℹ No meaningful diff detected.");
-      process.exit(0);
+      return;
     }
 
-    // Show diff if requested
     if (options.diff) {
-      console.log("\n📄 Git Diff:\n");
-      console.log(diff);
-      console.log("\n-----------------------------\n");
+      console.log(`\n📄 Git Diff:\n\n${diff}\n${"-".repeat(30)}\n`);
     }
 
-    // Generate commit message (AI or fallback)
+    // UX: Add a spinner during AI generation
+    const spinner = ora("Generating commit message...").start();
     const aiMessage = await generateCommitMessage(diff, options.noAi);
+    spinner.stop();
 
-    // Ask user to confirm / edit
     const finalMessage = await askCommitMessage(aiMessage);
 
-    if (!finalMessage || !finalMessage.trim()) {
-      console.log("❌ Commit message cannot be empty.");
+    if (!finalMessage?.trim()) {
+      console.error("❌ Commit message cannot be empty.");
       process.exit(1);
     }
 
-    // Dry-run mode
     if (options.dryRun) {
       console.log("\n🧪 Dry run mode enabled");
-      console.log("Proposed commit message:");
-      console.log(`➡ ${finalMessage}`);
-      process.exit(0);
+      console.log(`Proposed message: ${finalMessage}`);
+      return;
     }
 
-    // Commit changes
     await commitChanges(finalMessage);
     console.log("🎉 Commit successful!");
-    process.exit(0);
   } catch (err) {
-    console.error("❌ Error:", err.stack || err.message);
+    console.error("❌ Error:", err.message);
     process.exit(1);
   }
-})();
+}
+
+run();
