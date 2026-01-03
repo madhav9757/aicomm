@@ -1,7 +1,7 @@
 {
   "name": "aicomm",
-  "version": "1.0.0",
-  "description": "AI-powered git commit assistant",
+  "version": "1.1.0",
+  "description": "AI-powered git commit assistant with intelligent commit message generation",
   "type": "module",
   "main": "index.js",
   "bin": {
@@ -9,16 +9,26 @@
   },
   "scripts": {
     "start": "node ./bin/aicomm.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node --watch ./bin/aicomm.js",
+    "test": "node --test",
+    "lint": "eslint src/**/*.js bin/**/*.js",
+    "format": "prettier --write \"src/**/*.js\" \"bin/**/*.js\""
   },
   "keywords": [
     "git",
     "cli",
     "ai",
-    "commit"
+    "commit",
+    "conventional-commits",
+    "automation",
+    "openrouter",
+    "developer-tools"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
@@ -27,5 +37,17 @@
     "openai": "^6.15.0",
     "ora": "^9.0.0",
     "simple-git": "^3.30.0"
-  }
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/aicomm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/aicomm/issues"
+  },
+  "homepage": "https://github.com/yourusername/aicomm#readme"
 }
