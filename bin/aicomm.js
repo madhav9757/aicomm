@@ -2,137 +2,165 @@
 import { Command } from "commander";
 import "dotenv/config";
 import ora from "ora";
+import pc from "picocolors";
+import boxen from "boxen";
+import figures from "figures";
+
+// Import local logic
 import { getGitStatus } from "../src/git/status.js";
 import { getGitDiff } from "../src/git/diff.js";
 import { generateCommitMessage } from "../src/ai/generateCommit.js";
 import { askCommitMessage } from "../src/ui/prompt.js";
 import { commitChanges } from "../src/commit.js";
-import { loadConfig } from "../src/config/loadConfig.js";
 import { validateEnvironment } from "../src/utils/validation.js";
 
 const program = new Command();
 
 program
   .name("aicomm")
-  .description("AI-powered git commit assistant")
+  .description(`${pc.cyan("AI-powered git commit assistant (Local Edition)")}`)
   .version("1.0.0")
   .option("--dry-run", "Generate commit message without committing")
   .option("--diff", "Show git diff before committing")
-  .option("--no-ai", "Skip AI generation and use fallback commit message")
+  .option("--no-ai", "Skip AI generation and use fallback")
   .option("--push", "Push changes after committing")
+  .option(
+    "--model <name>",
+    "Specify Ollama model (default: llama3.2)",
+    "llama3.2"
+  )
   .option("--verbose", "Show detailed output");
 
 program.parse(process.argv);
 const options = program.opts();
 
 async function run() {
+  console.log(
+    boxen(pc.bold(pc.cyan("AICOMM 🤖")), {
+      padding: { left: 3, right: 3 },
+      margin: { top: 1, bottom: 1 },
+      borderStyle: "round",
+      borderColor: "cyan",
+    })
+  );
+
   const spinner = ora();
-  
+
   try {
-    // Validate environment
+    // 1. Validation - Updated for Local Ollama
     if (!options.noAi) {
-      const envCheck = validateEnvironment();
+      spinner.start(pc.dim("Checking AI engine..."));
+      const envCheck = await validateEnvironment(); // Now async
+
       if (!envCheck.valid) {
-        console.error(`❌ ${envCheck.error}`);
-        console.log("\n💡 Tip: Create a .env file with OPENROUTER_API_KEY=your_key");
-        console.log("   Or run with --no-ai flag to skip AI generation");
+        spinner.stop();
+        console.error(`${pc.red(figures.cross)} ${pc.bold("Ollama Offline")}`);
+        console.log(`${pc.yellow(figures.warning)} ${envCheck.error}`);
+        console.log(
+          `\n${pc.dim("Quick Fix: Open the Ollama app or run 'ollama serve' in your terminal.")}`
+        );
         process.exit(1);
       }
+      spinner.stop();
     }
 
-    // Load configuration
-    const config = loadConfig();
-    if (options.verbose) {
-      console.log("📝 Configuration loaded:", config);
-    }
-
-    // Check git status
-    spinner.start("Checking git status...");
+    // 2. Status Check
+    spinner.start(pc.dim("Scanning workspace..."));
     const status = await getGitStatus();
     spinner.stop();
 
     if (!status.files?.length) {
-      console.log("✅ No changes to commit.");
+      console.log(
+        `${pc.green(figures.tick)} No changes to commit. Clean as a whistle!`
+      );
       return;
     }
 
-    // Show status summary
-    console.log(`\n📊 Changes detected:`);
-    console.log(`   Modified: ${status.modified.length}`);
-    console.log(`   Created: ${status.created.length}`);
-    console.log(`   Deleted: ${status.deleted.length}`);
-    console.log(`   Staged: ${status.staged.length}`);
+    // 3. Summary Display
+    console.log(pc.bold(pc.underline("Workspace Summary")));
+    console.log(
+      `${pc.yellow(figures.bullet)} Modified: ${pc.bold(status.modified.length)}`
+    );
+    console.log(
+      `${pc.green(figures.bullet)} Created:  ${pc.bold(status.created.length)}`
+    );
+    console.log(
+      `${pc.red(figures.bullet)} Deleted:  ${pc.bold(status.deleted.length)}`
+    );
+    console.log(
+      `${pc.blue(figures.bullet)} Staged:   ${pc.bold(status.staged.length)}\n`
+    );
 
-    // Get git diff
-    spinner.start("Getting git diff...");
+    // 4. Diff Logic
+    spinner.start(pc.dim("Analyzing changes..."));
     const diff = await getGitDiff();
     spinner.stop();
 
     if (!diff?.trim()) {
-      console.log("ℹ️  No meaningful diff detected.");
+      console.log(`${pc.yellow(figures.info)} No meaningful diff detected.`);
       return;
     }
 
     if (options.diff) {
-      console.log(`\n${"=".repeat(60)}`);
-      console.log("📄 Git Diff:");
-      console.log("=".repeat(60));
-      console.log(diff);
-      console.log("=".repeat(60) + "\n");
+      console.log(
+        boxen(pc.dim(diff), {
+          title: "Git Diff",
+          padding: 1,
+          borderColor: "dim",
+        })
+      );
     }
 
-    // Generate commit message
-    spinner.start("Generating commit message...");
-    const aiMessage = await generateCommitMessage(diff, options.noAi, config);
-    spinner.succeed("Commit message generated!");
-
-    if (options.verbose) {
-      console.log(`AI suggested: "${aiMessage}"`);
+    // 5. AI Generation - Pass the whole options object for model choice
+    let aiMessage = "chore: update files";
+    if (!options.noAi) {
+      spinner.start(pc.magenta(`AI (${options.model}) is thinking...`));
+      aiMessage = await generateCommitMessage(diff, options, spinner);
+      spinner.succeed(pc.green("AI suggestion ready"));
     }
 
-    // Ask user for confirmation/editing
+    // 6. User Prompt
     const finalMessage = await askCommitMessage(aiMessage);
 
     if (!finalMessage?.trim()) {
-      console.error("❌ Commit message cannot be empty.");
+      console.error(`${pc.red(figures.cross)} Commit message cannot be empty.`);
       process.exit(1);
     }
 
-    // Dry run mode
+    // 7. Execution
     if (options.dryRun) {
-      console.log("\n🧪 Dry run mode enabled");
-      console.log(`📝 Proposed message: ${finalMessage}`);
-      console.log("   (No changes will be committed)");
+      console.log(`\n${pc.yellow(figures.warning)} ${pc.bold("DRY RUN MODE")}`);
+      console.log(`${pc.dim("Proposed message:")} ${pc.italic(finalMessage)}`);
       return;
     }
 
-    // Commit changes
-    spinner.start("Committing changes...");
+    spinner.start(pc.cyan("Executing commit..."));
     await commitChanges(finalMessage);
-    spinner.succeed("Commit successful!");
-    console.log(`✨ Committed: "${finalMessage}"`);
+    spinner.succeed(pc.green("Changes committed!"));
+    console.log(
+      boxen(pc.green(finalMessage), {
+        title: "Final Commit Message",
+        padding: 1,
+        borderColor: "green",
+        margin: { top: 1 },
+      })
+    );
 
-    // Push if requested
     if (options.push) {
-      spinner.start("Pushing to remote...");
+      spinner.start(pc.blue("Pushing to remote..."));
       try {
         await pushChanges();
-        spinner.succeed("Push successful!");
+        spinner.succeed(pc.blue("Synced with remote!"));
       } catch (err) {
-        spinner.fail("Push failed");
-        console.error(`⚠️  ${err.message}`);
+        spinner.fail(pc.red("Push failed"));
+        console.error(`${pc.red(figures.warning)} ${err.message}`);
         process.exit(1);
       }
     }
-
   } catch (err) {
-    spinner.stop();
-    console.error("\n❌ Error:", err.message);
-    
-    if (options.verbose) {
-      console.error("\nStack trace:", err.stack);
-    }
-    
+    if (spinner.isSpinning) spinner.stop();
+    console.error(`\n${pc.bgRed(" FATAL ERROR ")} ${pc.red(err.message)}`);
+    if (options.verbose) console.error(pc.dim(err.stack));
     process.exit(1);
   }
 }

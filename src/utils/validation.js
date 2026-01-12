@@ -1,66 +1,87 @@
+import fetch from "node-fetch"; // Or use global fetch if on Node 18+
+
 /**
- * Validate environment setup
- * @returns {{valid: boolean, error?: string}}
+ * Validate environment setup for Ollama
+ * @returns {Promise<{valid: boolean, error?: string}>}
  */
-export function validateEnvironment() {
-  // Check for API key
-  if (!process.env.OPENROUTER_API_KEY) {
+export async function validateEnvironment() {
+  try {
+    // We check the standard Ollama port
+    const response = await fetch("http://127.0.0.1:11434/api/tags");
+
+    if (response.ok) {
+      return { valid: true };
+    }
+
     return {
       valid: false,
-      error: "OPENROUTER_API_KEY is not set in environment variables",
+      error:
+        "Ollama is responding but returned an error. Try restarting the Ollama app.",
     };
-  }
-
-  // Check API key format (basic validation)
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (apiKey.length < 10) {
+  } catch (err) {
+    // If the fetch fails, the server is likely not running
     return {
       valid: false,
-      error: "OPENROUTER_API_KEY appears to be invalid (too short)",
+      error:
+        "Ollama is not running. Please start the Ollama app or run 'ollama serve' in your terminal.",
     };
   }
-
-  return { valid: true };
 }
 
 /**
- * Validate commit message format
- * @param {string} message - Commit message to validate
- * @returns {{valid: boolean, warnings: string[]}}
+ * Validate commit message format (Supporting Long Body)
+ * @param {string} message - The full commit message from AI/User
+ * @returns {{valid: boolean, warnings: string[], cleanedMessage: string}}
  */
 export function validateCommitMessage(message) {
   const warnings = [];
-  
-  if (!message || !message.trim()) {
+
+  const cleanedMessage = message
+    .trim()
+    .replace(/^["']|["']$/g, "") // Remove wrapping quotes
+    .replace(/^commit message:\s*/i, ""); // Remove "Commit message: " prefix
+
+  if (!cleanedMessage) {
     return {
       valid: false,
       warnings: ["Commit message is empty"],
+      cleanedMessage: "",
     };
   }
 
-  const trimmed = message.trim();
+  const lines = cleanedMessage.split(/\r?\n/);
+  const subject = lines[0].trim();
+  const body = lines.slice(1).join("\n").trim();
 
-  // Check length
-  if (trimmed.length > 72) {
-    warnings.push(`Message length (${trimmed.length}) exceeds recommended 72 characters`);
+  if (subject.length > 600) {
+    warnings.push(
+      `Subject line is a bit long (${subject.length} chars). Ideally keep it under 72.`
+    );
+  }
+  const conventionalPattern =
+    /^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\(.+?\))?:\s.+/i;
+  if (!conventionalPattern.test(subject)) {
+    warnings.push(
+      "Subject doesn't follow conventional format (e.g., 'feat: add login')"
+    );
   }
 
-  // Check for conventional commit format
-  const conventionalPattern = /^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\(.+?\))?:\s.+/;
-  if (!conventionalPattern.test(trimmed)) {
-    warnings.push("Message doesn't follow conventional commits format");
-  }
-
-  // Check for imperative mood (basic check)
-  const firstWord = trimmed.split(":")[1]?.trim().split(" ")[0]?.toLowerCase();
-  const pastTenseIndicators = ["added", "fixed", "updated", "removed", "changed"];
-  if (firstWord && pastTenseIndicators.includes(firstWord)) {
-    warnings.push("Consider using imperative mood (e.g., 'add' instead of 'added')");
+  if (body) {
+    if (lines[1] && lines[1].trim() !== "") {
+      warnings.push(
+        "Git best practice: Add a blank line between the subject and the body."
+      );
+    }
+  } else {
+    warnings.push(
+      "Message is a one-liner. Consider a longer body for complex changes."
+    );
   }
 
   return {
-    valid: true,
+    valid: true, 
     warnings,
+    cleanedMessage,
   };
 }
 

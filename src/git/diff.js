@@ -44,15 +44,14 @@ export async function getGitDiff(options = {}) {
     if (lines.length > maxLines) {
       const truncated = lines.slice(0, maxLines).join("\n");
       return (
-        truncated +
-        `\n\n[... truncated ${lines.length - maxLines} lines ...]`
+        truncated + `\n\n[... truncated ${lines.length - maxLines} lines ...]`
       );
     }
 
     return diff;
   } catch (err) {
     throw new Error(
-      `Failed to get git diff. Are you inside a git repository? ${err.message}`
+      `Failed to get git diff. Are you inside a git repository? ${err.message}`,
     );
   }
 }
@@ -88,11 +87,11 @@ export async function getDiffStats() {
     // Calculate totals
     const totalAdded = [...staged, ...unstaged].reduce(
       (sum, s) => sum + s.added,
-      0
+      0,
     );
     const totalRemoved = [...staged, ...unstaged].reduce(
       (sum, s) => sum + s.removed,
-      0
+      0,
     );
 
     return {

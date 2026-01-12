@@ -9,14 +9,14 @@ const git = simpleGit();
 export async function getGitStatus() {
   try {
     const status = await git.status();
-    
+
     return {
       ...status,
       hasChanges: status.files.length > 0,
       hasStagedChanges: status.staged.length > 0,
-      hasUnstagedChanges: 
-        status.modified.length > 0 || 
-        status.not_added.length > 0 || 
+      hasUnstagedChanges:
+        status.modified.length > 0 ||
+        status.not_added.length > 0 ||
         status.deleted.length > 0,
     };
   } catch (err) {
@@ -45,7 +45,7 @@ export async function getBranchInfo() {
   try {
     const status = await git.status();
     const branches = await git.branch();
-    
+
     return {
       current: status.current,
       tracking: status.tracking,

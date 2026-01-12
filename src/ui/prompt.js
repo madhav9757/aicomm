@@ -14,21 +14,22 @@ export async function askCommitMessage(defaultMessage) {
       default: defaultMessage,
       validate(input) {
         const trimmed = input.trim();
-        
+
         if (!trimmed) {
           return "❌ Commit message cannot be empty";
         }
-        
+
         if (trimmed.length > 72) {
           return `⚠️  Message is ${trimmed.length} chars (recommended max: 72)`;
         }
-        
+
         // Check for conventional commit format
-        const pattern = /^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\(.+?\))?:\s.+/;
+        const pattern =
+          /^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\(.+?\))?:\s.+/;
         if (!pattern.test(trimmed)) {
           return "⚠️  Consider using conventional commits format: <type>: <description>";
         }
-        
+
         return true;
       },
     },
@@ -66,7 +67,7 @@ export async function selectFiles(files) {
       type: "checkbox",
       name: "selectedFiles",
       message: "Select files to commit:",
-      choices: files.map(file => ({
+      choices: files.map((file) => ({
         name: `${file.working_dir} ${file.path}`,
         value: file.path,
         checked: true,

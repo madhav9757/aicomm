@@ -30,12 +30,16 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "boxen": "^8.0.1",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
+    "enquirer": "^2.4.1",
     "execa": "^9.6.1",
     "inquirer": "^13.1.0",
-    "openai": "^6.15.0",
+    "ollama": "^0.6.3",
+    "onnxruntime-node": "^1.23.2",
     "ora": "^9.0.0",
+    "picocolors": "^1.1.1",
     "simple-git": "^3.30.0"
   },
   "devDependencies": {
