@@ -12,7 +12,7 @@ program
   .option("-v, --verbose", "Show detailed output")
   .option("-p, --push", "Push changes after committing")
   .option("-s, --stage-all", "Stage all changes before generating")
-  .option("-m, --model <name>", "Specify Gemini model", "gemini-1.5-flash")
+  .option("-m, --model <name>", "Specify Gemini model", "gemini-3-flash-preview")
   .option("--no-ai", "Skip AI generation and use fallback");
 
 program.parse(process.argv);

@@ -30,7 +30,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^1.37.0",
     "boxen": "^8.0.1",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",

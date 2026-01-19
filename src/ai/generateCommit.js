@@ -1,21 +1,15 @@
 import pc from "picocolors";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import "dotenv/config";
 
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
-// Initialize AI client lazily to ensure env vars are loaded
-let genAI;
-function getGenAI() {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key;
-    if (!apiKey) {
-      throw new Error("Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.");
-    }
-    genAI = new GoogleGenerativeAI(apiKey);
-  }
-  return genAI;
+// Initialize AI client following the template
+const apiKey = (process.env.GEMINI_API_KEY || process.env.geminie_key || "").trim();
+if (!apiKey) {
+  throw new Error("Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.");
 }
+const ai = new GoogleGenAI({ apiKey });
 
 /**
  * Generate a commit message using Gemini AI
@@ -36,15 +30,6 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
       spinner.text = pc.cyan(`Gemini (${model}) is analyzing changes...`);
     }
 
-    const ai = getGenAI();
-    const generativeModel = ai.getGenerativeModel({
-      model: model,
-      generationConfig: {
-        temperature: 0.2, // Lower temperature for more predictable git commits
-        maxOutputTokens: 800,
-      }
-    });
-
     const prompt = `
       You are an expert software engineer following best practices for git commits.
       Write a professional, concise, and clear git commit message based on the following diff.
@@ -62,9 +47,13 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
       ${diff.slice(0, 10000)}
     `;
 
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text().trim();
+    // Using the requested template structure
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+    });
+
+    let text = response.text.trim();
 
     // Clean up markdown code blocks if the AI includes them
     text = text.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
@@ -79,11 +68,9 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
       spinner.fail(pc.red("AI Generation failed"));
     }
 
-    if (err.message.includes("API_KEY_INVALID")) {
-      throw new Error("Invalid Gemini API Key. Please check your .env file.");
-    }
+    console.error(pc.red(`\nError: ${err.message}`));
+    if (err.stack && options.verbose) console.error(pc.dim(err.stack));
 
-    console.error(pc.dim(`Debug info: ${err.message}`));
     return "chore: update files (fallback)";
   }
 }
