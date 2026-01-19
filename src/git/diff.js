@@ -10,50 +10,45 @@ const git = simpleGit();
 export async function getGitDiff(options = {}) {
   try {
     const {
-      maxLines = 500,
+      maxLines = 300,
       staged = true,
-      unstaged = true,
-      context = 3,
+      unstaged = false,
+      ignoreLockFiles = true,
     } = options;
 
-    let diff = "";
+    let diffArgs = ["--unified=3"];
+    if (staged) diffArgs.push("--staged");
 
-    // Get staged changes
-    if (staged) {
-      const stagedDiff = await git.diff(["--staged", `--unified=${context}`]);
-      if (stagedDiff) {
-        diff += stagedDiff;
-      }
+    // Ignore lock files as they are usually huge and not helpful for commit messages
+    if (ignoreLockFiles) {
+      diffArgs.push("--", ":!package-lock.json", ":!yarn.lock", ":!pnpm-lock.yaml");
     }
 
-    // Get unstaged changes
-    if (unstaged) {
-      const unstagedDiff = await git.diff([`--unified=${context}`]);
-      if (unstagedDiff) {
-        if (diff) diff += "\n";
-        diff += unstagedDiff;
-      }
-    }
+    const diff = await git.diff(diffArgs);
 
     if (!diff.trim()) {
+      // If no staged changes and we are allowed to check unstaged
+      if (staged && unstaged) {
+        const unstagedDiff = await git.diff(["--unified=3"]);
+        return truncateDiff(unstagedDiff, maxLines);
+      }
       return "";
     }
 
-    // Limit diff size
-    const lines = diff.split("\n");
-    if (lines.length > maxLines) {
-      const truncated = lines.slice(0, maxLines).join("\n");
-      return (
-        truncated + `\n\n[... truncated ${lines.length - maxLines} lines ...]`
-      );
-    }
-
-    return diff;
+    return truncateDiff(diff, maxLines);
   } catch (err) {
     throw new Error(
-      `Failed to get git diff. Are you inside a git repository? ${err.message}`,
+      `Failed to get git diff: ${err.message}`,
     );
   }
+}
+
+function truncateDiff(diff, maxLines) {
+  const lines = diff.split("\n");
+  if (lines.length > maxLines) {
+    return lines.slice(0, maxLines).join("\n") + `\n\n[... truncated for brevity ...]`;
+  }
+  return diff;
 }
 
 /**
@@ -62,45 +57,15 @@ export async function getGitDiff(options = {}) {
  */
 export async function getDiffStats() {
   try {
-    const stagedStats = await git.diff(["--staged", "--numstat"]);
-    const unstagedStats = await git.diff(["--numstat"]);
-
-    const parseStats = (statText) => {
-      if (!statText.trim()) return [];
-
-      return statText
-        .trim()
-        .split("\n")
-        .map((line) => {
-          const [added, removed, file] = line.split(/\s+/);
-          return {
-            file,
-            added: added === "-" ? 0 : parseInt(added, 10),
-            removed: removed === "-" ? 0 : parseInt(removed, 10),
-          };
-        });
-    };
-
-    const staged = parseStats(stagedStats);
-    const unstaged = parseStats(unstagedStats);
-
-    // Calculate totals
-    const totalAdded = [...staged, ...unstaged].reduce(
-      (sum, s) => sum + s.added,
-      0,
-    );
-    const totalRemoved = [...staged, ...unstaged].reduce(
-      (sum, s) => sum + s.removed,
-      0,
-    );
+    const status = await git.status();
 
     return {
-      staged,
-      unstaged,
+      modified: status.modified,
+      created: status.not_added,
+      deleted: status.deleted,
+      staged: status.staged,
       total: {
-        added: totalAdded,
-        removed: totalRemoved,
-        files: staged.length + unstaged.length,
+        files: status.files.length,
       },
     };
   } catch (err) {
@@ -108,32 +73,3 @@ export async function getDiffStats() {
   }
 }
 
-/**
- * Get a summary of changes
- * @returns {Promise<string>} Human-readable summary
- */
-export async function getDiffSummary() {
-  try {
-    const stats = await getDiffStats();
-
-    if (stats.total.files === 0) {
-      return "No changes detected";
-    }
-
-    const parts = [];
-
-    if (stats.total.added > 0) {
-      parts.push(`+${stats.total.added} additions`);
-    }
-
-    if (stats.total.removed > 0) {
-      parts.push(`-${stats.total.removed} deletions`);
-    }
-
-    parts.push(`across ${stats.total.files} file(s)`);
-
-    return parts.join(", ");
-  } catch (err) {
-    return "Unable to generate summary";
-  }
-}

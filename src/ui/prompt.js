@@ -1,55 +1,50 @@
 import inquirer from "inquirer";
+import pc from "picocolors";
 
 /**
- * Ask user to confirm/edit commit message
- * @param {string} defaultMessage - AI-generated message
+ * Ask user what to do with the generated message
+ * @param {string} aiMessage - AI-generated message
  * @returns {Promise<string>} Final commit message
  */
-export async function askCommitMessage(defaultMessage) {
-  const { message } = await inquirer.prompt([
+export async function askCommitMessage(aiMessage) {
+  console.log(`\n${pc.bold(pc.magenta("AI Suggestion:"))}\n${pc.italic(pc.white(aiMessage))}\n`);
+
+  const { action } = await inquirer.prompt([
     {
-      type: "input",
-      name: "message",
-      message: "Commit message:",
-      default: defaultMessage,
-      validate(input) {
-        const trimmed = input.trim();
-
-        if (!trimmed) {
-          return "❌ Commit message cannot be empty";
-        }
-
-        if (trimmed.length > 72) {
-          return `⚠️  Message is ${trimmed.length} chars (recommended max: 72)`;
-        }
-
-        // Check for conventional commit format
-        const pattern =
-          /^(feat|fix|chore|docs|refactor|test|style|perf|ci|build)(\(.+?\))?:\s.+/;
-        if (!pattern.test(trimmed)) {
-          return "⚠️  Consider using conventional commits format: <type>: <description>";
-        }
-
-        return true;
-      },
+      type: "list",
+      name: "action",
+      message: "What would you like to do?",
+      choices: [
+        { name: `✅ ${pc.bold("Use this message")}`, value: "use" },
+        { name: `📝 ${pc.bold("Edit message")}`, value: "edit" },
+        { name: `❌ ${pc.bold("Abort commit")}`, value: "abort" },
+      ],
     },
   ]);
 
-  const { confirm } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "confirm",
-      message: "Proceed with this commit?",
-      default: true,
-    },
-  ]);
-
-  if (!confirm) {
-    console.log("❌ Commit aborted by user.");
+  if (action === "abort") {
+    console.log(pc.yellow("⚠ Commit aborted by user."));
     process.exit(0);
   }
 
-  return message.trim();
+  if (action === "edit") {
+    const { editedMessage } = await inquirer.prompt([
+      {
+        type: "input", // Or editor if it's very long, but input is faster
+        name: "editedMessage",
+        message: "Edit commit message:",
+        default: aiMessage,
+      },
+    ]);
+
+    if (!editedMessage.trim()) {
+      console.log(pc.red("✖ Commit message cannot be empty."));
+      process.exit(1);
+    }
+    return editedMessage.trim();
+  }
+
+  return aiMessage;
 }
 
 /**
@@ -68,16 +63,10 @@ export async function selectFiles(files) {
       name: "selectedFiles",
       message: "Select files to commit:",
       choices: files.map((file) => ({
-        name: `${file.working_dir} ${file.path}`,
+        name: `${pc.dim(file.working_dir)} ${file.path}`,
         value: file.path,
         checked: true,
       })),
-      validate(answer) {
-        if (answer.length === 0) {
-          return "You must select at least one file";
-        }
-        return true;
-      },
     },
   ]);
 
@@ -95,10 +84,12 @@ export async function confirmAction(message, defaultValue = true) {
     {
       type: "confirm",
       name: "confirmed",
-      message,
+      message: pc.cyan(message),
       default: defaultValue,
     },
   ]);
 
   return confirmed;
 }
+
+

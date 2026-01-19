@@ -21,23 +21,21 @@
     "commit",
     "conventional-commits",
     "automation",
-    "openrouter",
+    "gemini",
     "developer-tools"
   ],
-  "author": "",
+  "author": "Madhav",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "boxen": "^8.0.1",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
-    "enquirer": "^2.4.1",
-    "execa": "^9.6.1",
+    "figures": "^6.1.0",
     "inquirer": "^13.1.0",
-    "ollama": "^0.6.3",
-    "onnxruntime-node": "^1.23.2",
     "ora": "^9.0.0",
     "picocolors": "^1.1.1",
     "simple-git": "^3.30.0"
@@ -45,13 +43,6 @@
   "devDependencies": {
     "eslint": "^9.0.0",
     "prettier": "^3.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourusername/aicomm.git"
-  },
-  "bugs": {
-    "url": "https://github.com/yourusername/aicomm/issues"
-  },
-  "homepage": "https://github.com/yourusername/aicomm#readme"
+  }
 }
+

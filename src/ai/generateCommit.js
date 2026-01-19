@@ -1,60 +1,89 @@
-import ollama from 'ollama';
 import pc from "picocolors";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import "dotenv/config";
 
-const DEFAULT_MODEL = 'llama3.2'; 
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 
+// Initialize AI client lazily to ensure env vars are loaded
+let genAI;
+function getGenAI() {
+  if (!genAI) {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key;
+    if (!apiKey) {
+      throw new Error("Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.");
+    }
+    genAI = new GoogleGenerativeAI(apiKey);
+  }
+  return genAI;
+}
+
+/**
+ * Generate a commit message using Gemini AI
+ * @param {string} diff The git diff text
+ * @param {object} options CLI options
+ * @param {object} spinner Ora spinner instance
+ * @returns {Promise<string>} The generated commit message
+ */
 export async function generateCommitMessage(diff, options = {}, spinner) {
-  const { disableAI = false, model = DEFAULT_MODEL } = options;
-  
-  if (disableAI || !diff) return "chore: update files";
+  const { model = DEFAULT_MODEL } = options;
+
+  if (!diff || diff.trim() === "") {
+    return "chore: update files";
+  }
 
   try {
-    // 1. Check if the model exists (Same as before)
-    if (spinner) spinner.text = pc.blue(`Checking for model ${model}...`);
-    const localModels = await ollama.list();
-    const hasModel = localModels.models.some(m => m.name.includes(model));
-
-    if (!hasModel) {
-      if (spinner) spinner.text = pc.yellow(`Downloading ${model} (one-time setup)...`);
-      await ollama.pull({ model });
+    if (spinner) {
+      spinner.text = pc.cyan(`Gemini (${model}) is analyzing changes...`);
     }
 
-    if (spinner) spinner.text = pc.cyan(`AI is writing a detailed report...`);
-
-    // 2. Generate the message (Updated for Long Format)
-    const response = await ollama.chat({
+    const ai = getGenAI();
+    const generativeModel = ai.getGenerativeModel({
       model: model,
-      messages: [
-        { 
-          role: "system", 
-          content: `Write a detailed and professional git commit message based on the diff provided.
-          Follow this EXACT structure:
-          1. A single summary line (max 72 chars) starting with a conventional commit type (feat:, fix:, chore:, etc.).
-          2. A blank line.
-          3. A detailed bulleted list explaining exactly WHAT changed and WHY.
-          
-          Do not include any intro text like 'Here is the message'. Just the git message itself. and the total chars should be under 600 characters(imp)` 
-        },
-        { 
-          role: "user", 
-          content: `Diff summary:\n${diff.slice(0, 3000)}` // Increased slice for more context
-        }
-      ],
-      options: {
-        temperature: 0.4, // Slightly higher for better descriptive flow
-        num_predict: 500,  // Increased from 40 to 500 characters to allow for body text
-        num_ctx: 4096      // Standard context window
+      generationConfig: {
+        temperature: 0.2, // Lower temperature for more predictable git commits
+        maxOutputTokens: 800,
       }
     });
 
-    const finalMessage = response.message.content.trim();
-    
-    // Safety check to remove any markdown code block artifacts the AI might add
-    return finalMessage.replace(/```/g, '') || "feat: update project";
+    const prompt = `
+      You are an expert software engineer following best practices for git commits.
+      Write a professional, concise, and clear git commit message based on the following diff.
+      
+      RULES:
+      1. Use the Conventional Commits format (type: description).
+      2. Types: feat, fix, chore, docs, style, refactor, perf, test, build, ci.
+      3. The first line (subject) should be max 72 characters.
+      4. If the changes are complex, add a blank line followed by a bulleted list of focus areas (WHY and WHAT, not HOW).
+      5. Do not include any meta-talk like "Sure, here is your message".
+      6. Output ONLY the commit message.
+      7. Keep the total length under 800 characters.
+
+      DIFF:
+      ${diff.slice(0, 10000)}
+    `;
+
+    const result = await generativeModel.generateContent(prompt);
+    const response = await result.response;
+    let text = response.text().trim();
+
+    // Clean up markdown code blocks if the AI includes them
+    text = text.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+
+    // Remove any leading "Commit message:" or similar prefixes
+    text = text.replace(/^(Commit message|Message|Subject):\s*/i, '').trim();
+
+    return text || "chore: update files (empty response)";
 
   } catch (err) {
-    if (spinner) spinner.fail(pc.red("AI Error: Ensure Ollama is running."));
-    console.error(err);
+    if (spinner) {
+      spinner.fail(pc.red("AI Generation failed"));
+    }
+
+    if (err.message.includes("API_KEY_INVALID")) {
+      throw new Error("Invalid Gemini API Key. Please check your .env file.");
+    }
+
+    console.error(pc.dim(`Debug info: ${err.message}`));
     return "chore: update files (fallback)";
   }
 }
