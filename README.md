@@ -10,10 +10,11 @@
 
 ## ✨ Features
 
-- 🚀 **Blazing Fast:** Optimized with dynamic module loading for instant startup.
-- 🧠 **AI-Powered:** Uses Google's **Gemini 2.0 Flash** for intelligent code analysis.
+- 🚀 **Blazing Fast:** Optimized module loading for instant startup.
+- 🧠 **AI-Powered:** Uses Google's **Gemini 3.6 Flash** for intelligent code analysis and reasoning.
+- 🌍 **Global Configuration:** Set your API key once, and use `aicomm` instantly across all your local repositories. No `.env` files required!
 - 📝 **Conventional Commits:** Automatically follows standard commit formats (`feat`, `fix`, `chore`, etc.).
-- 🔍 **Lockfile Isolation:** Intelligent filtering to ignore noisy lockfile changes.
+- 🔍 **Lockfile Isolation:** Intelligent filtering ignores noisy lockfiles and minified assets to save tokens.
 - 🔄 **Staging Integration:** Quickly stage all changes with the `-s` flag.
 - 🧪 **Dry Run:** Preview suggestions without affecting your repository.
 
@@ -34,11 +35,12 @@ npm link
 
 ### 2. Configuration
 
-Create a `.env` file in the root directory and add your Gemini API Key:
+You do not need to set up a `.env` file for every project.
 
-```env
-GEMINI_API_KEY=your_api_key_here
-```
+Simply run the tool for the first time in any repository. If you haven't configured an API key, aicomm will securely prompt you for it and save it globally to your machine `(~/.aicomm)`.
+
+#If you ever need to update your key manually, run:
+```aicomm auth `<your_new_api_key>` ```
 
 ### 3. Usage
 
@@ -49,12 +51,13 @@ aicomm
 ```
 
 #### Options:
-
+- `auth <key>`: Save or update your Gemini API key globally.
 - `-s, --stage-all`: Stage all changes before generating.
 - `-p, --push`: Push changes automatically after committing.
 - `-d, --dry-run`: Generate message without committing.
 - `-v, --verbose`: Show detailed debug logs.
-- `-m, --model`: Specify an alternative Gemini model.
+- `-m, --model <name>`: Specify an alternative Gemini model (Default: gemini-3.6-flash).
+- `--no-ai`: Skip AI generation and use a fallback chore message.
 
 ---
 
@@ -77,6 +80,3 @@ Contributions are welcome! Feel free to open an issue or submit a pull request.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
----
-
-<p align="center">Made with ❤️ for developers who hate writing commit messages.</p>
