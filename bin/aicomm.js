@@ -1,6 +1,22 @@
 #!/usr/bin/env node
+import inquirer from "inquirer";
 import { Command } from "commander";
 import "dotenv/config";
+
+import ora from "ora";
+import pc from "picocolors";
+import boxen from "boxen";
+import figures from "figures";
+
+import { getGitStatus } from "../src/git/status.js";
+import { getGitDiff } from "../src/git/diff.js";
+import { generateCommitMessage } from "../src/ai/generateCommit.js";
+import { askCommitMessage } from "../src/ui/prompt.js";
+import { commitChanges, pushToRemote, stageFiles } from "../src/commit.js";
+import { validateEnvironment } from "../src/utils/validation.js";
+
+// 👇 Here is the missing import that caused the crash!
+import { getApiKey, saveApiKey } from "../src/utils/config.js"; 
 
 const program = new Command();
 
@@ -19,36 +35,11 @@ program.parse(process.argv);
 const options = program.opts();
 
 async function run() {
-  // Dynamic imports for faster initial CLI startup
-  const [
-    { default: ora },
-    { default: pc },
-    { default: boxen },
-    { default: figures },
-    { getGitStatus },
-    { getGitDiff },
-    { generateCommitMessage },
-    { askCommitMessage },
-    { commitChanges, pushToRemote },
-    { validateEnvironment }
-  ] = await Promise.all([
-    import("ora"),
-    import("picocolors"),
-    import("boxen"),
-    import("figures"),
-    import("../src/git/status.js"),
-    import("../src/git/diff.js"),
-    import("../src/ai/generateCommit.js"),
-    import("../src/ui/prompt.js"),
-    import("../src/commit.js"), 
-    import("../src/utils/validation.js")
-  ]);
-
   console.log(
     boxen(pc.bold(pc.cyan("AICOMM 🤖")), {
       padding: { left: 3, right: 3 },
       margin: { top: 1, bottom: 1 },
-      borderStyle: "single", // Sharper, cleaner UI line
+      borderStyle: "single",
       borderColor: "cyan",
       title: "v1.1.0",
       titleAlignment: "right"
@@ -58,20 +49,38 @@ async function run() {
   const spinner = ora();
 
   try {
-    // 1. Environment Validation (Was imported but never executed)
+    // 1. Environment Validation
     const envCheck = await validateEnvironment();
     if (!envCheck.valid) {
       console.error(`${pc.red(figures.cross)} ${pc.bold(envCheck.error)}`);
       process.exit(1);
     }
 
-    // 2. API Validation
+    // 2. API Validation & Interactive Setup
     if (!options.noAi) {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key;
+      let apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key || getApiKey();
+      
       if (!apiKey) {
-        console.error(`${pc.red(figures.cross)} ${pc.bold("API Key Missing")}`);
-        console.log(`${pc.yellow("Please add GEMINI_API_KEY=your_key to your .env file.")}`);
-        process.exit(1);
+        console.log(`\n${pc.yellow(figures.warning)} ${pc.bold("No API Key Found")}`);
+        console.log(pc.dim("Let's set it up! Your key will be saved securely on your machine."));
+        
+        const { newKey } = await inquirer.prompt([
+          {
+            type: "password", // This masks the input with asterisks
+            name: "newKey",
+            message: "Enter your Gemini API Key:",
+            mask: "*",
+          },
+        ]);
+
+        if (!newKey || !newKey.trim()) {
+          console.error(`${pc.red(figures.cross)} API Key is required to use AI generation. Run with --no-ai to skip.`);
+          process.exit(1);
+        }
+
+        // Save it globally
+        saveApiKey(newKey.trim());
+        console.log(pc.green(`${figures.tick} API Key saved globally!\n`));
       }
     }
 
@@ -87,7 +96,6 @@ async function run() {
 
     if (options.stageAll && status.hasUnstagedChanges) {
       spinner.start(pc.dim("Staging changes..."));
-      const { stageFiles } = await import("../src/commit.js");
       await stageFiles(".");
       spinner.succeed(pc.green("All changes staged"));
     }
@@ -109,7 +117,7 @@ async function run() {
       return;
     }
 
-    // 6. AI Generation & User Interaction Loop (Handles the "Regenerate" action)
+    // 6. AI Generation Loop
     let finalMessage;
     let aiMessage = "chore: update files";
 
@@ -122,13 +130,11 @@ async function run() {
 
       finalMessage = await askCommitMessage(aiMessage);
 
-      // If user selected "Regenerate message", loop back and run the AI again
       if (finalMessage === "regenerate") {
         console.log(pc.dim("\nRetrying generation..."));
         continue;
       }
       
-      // Break the loop once we have a valid, accepted message
       break; 
     }
 

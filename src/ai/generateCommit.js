@@ -1,22 +1,14 @@
 import pc from "picocolors";
 import { GoogleGenAI } from "@google/genai";
 import "dotenv/config";
+import { getApiKey } from "../utils/config.js";
 
 const DEFAULT_MODEL = 'gemini-3.6-flash';
 
-// Initialize AI client following the template
-const apiKey = (process.env.GEMINI_API_KEY || process.env.geminie_key || "").trim();
-if (!apiKey) {
-  throw new Error("Missing Gemini API Key. Please add GEMINI_API_KEY to your .env file.");
-}
-const ai = new GoogleGenAI({ apiKey });
+// DO NOT put the API key check up here! It will crash on import.
 
 /**
  * Generate a commit message using Gemini AI
- * @param {string} diff The git diff text
- * @param {object} options CLI options
- * @param {object} spinner Ora spinner instance
- * @returns {Promise<string>} The generated commit message
  */
 export async function generateCommitMessage(diff, options = {}, spinner) {
   const { model = DEFAULT_MODEL } = options;
@@ -24,6 +16,15 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
   if (!diff || diff.trim() === "") {
     return "chore: update files";
   }
+
+  // 1. LAZY INITIALIZATION: Check for the key down here, inside the function!
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.geminie_key || getApiKey() || "").trim();
+  
+  if (!apiKey) {
+    throw new Error("Missing API Key. Run 'aicomm auth <your_api_key>' to set it globally.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     if (spinner) {
@@ -54,10 +55,7 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
 
     let text = response.text ? response.text.trim() : "";
 
-    // Comprehensive cleanup of markdown code blocks
     text = text.replace(/^```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
-
-    // Remove any leading conversational prefixes or model labels
     text = text.replace(/^(Here is|Commit message|Message|Subject):\s*/i, '').trim();
 
     return text || "chore: update files (empty response)";
@@ -66,7 +64,6 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
     if (spinner) {
       spinner.fail(pc.red("AI Generation failed"));
     }
-
     console.error(pc.red(`\nError: ${err.message}`));
     if (err.stack && options.verbose) console.error(pc.dim(err.stack));
 
