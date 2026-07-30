@@ -2,7 +2,7 @@ import pc from "picocolors";
 import { GoogleGenAI } from "@google/genai";
 import "dotenv/config";
 
-const DEFAULT_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_MODEL = 'gemini-3.6-flash';
 
 // Initialize AI client following the template
 const apiKey = (process.env.GEMINI_API_KEY || process.env.geminie_key || "").trim();
@@ -39,27 +39,26 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
       2. Types: feat, fix, chore, docs, style, refactor, perf, test, build, ci.
       3. The first line (subject) should be max 72 characters.
       4. If the changes are complex, add a blank line followed by a bulleted list of focus areas (WHY and WHAT, not HOW).
-      5. Do not include any meta-talk like "Sure, here is your message".
-      6. Output ONLY the commit message.
+      5. Do not include any meta-talk like "Sure, here is your message" or markdown wrappers.
+      6. Output ONLY the raw commit message text.
       7. Keep the total length under 800 characters.
 
       DIFF:
       ${diff.slice(0, 10000)}
     `;
 
-    // Using the requested template structure
     const response = await ai.models.generateContent({
       model: model,
       contents: prompt,
     });
 
-    let text = response.text.trim();
+    let text = response.text ? response.text.trim() : "";
 
-    // Clean up markdown code blocks if the AI includes them
-    text = text.replace(/^```[a-z]*\n/i, '').replace(/\n```$/i, '').trim();
+    // Comprehensive cleanup of markdown code blocks
+    text = text.replace(/^```[a-z]*\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
 
-    // Remove any leading "Commit message:" or similar prefixes
-    text = text.replace(/^(Commit message|Message|Subject):\s*/i, '').trim();
+    // Remove any leading conversational prefixes or model labels
+    text = text.replace(/^(Here is|Commit message|Message|Subject):\s*/i, '').trim();
 
     return text || "chore: update files (empty response)";
 

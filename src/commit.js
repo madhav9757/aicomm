@@ -10,12 +10,12 @@ export async function commitChanges(message) {
   try {
     const status = await git.status();
 
-    // If nothing staged, add all changes (standard behavior for simple CLI)
+    // If nothing is staged, auto-stage everything (common CLI convenience)
     if (status.staged.length === 0) {
-      if (status.modified.length > 0 || status.not_added.length > 0 || status.deleted.length > 0) {
+      if (!status.isClean()) {
         await git.add(".");
       } else {
-        throw new Error("No changes detected to commit.");
+        throw new Error("No changes detected in the repository to commit.");
       }
     }
 
@@ -32,9 +32,11 @@ export async function commitChanges(message) {
  * Push changes to remote
  */
 export async function pushToRemote() {
+  let currentBranch;
+
   try {
     const status = await git.status();
-    const currentBranch = status.current;
+    currentBranch = status.current;
 
     if (!currentBranch) {
       throw new Error("Cannot determine current branch. Are you in a detached HEAD state?");
@@ -45,12 +47,16 @@ export async function pushToRemote() {
       throw new Error("No remote repository configured. Run 'git remote add origin <url>' first.");
     }
 
-    await git.push("origin", currentBranch);
+    // Default to 'origin' if it exists, otherwise intelligently pick the first available remote
+    const remoteName = remotes.find((r) => r.name === "origin") ? "origin" : remotes[0].name;
+
+    await git.push(remoteName, currentBranch);
   } catch (err) {
-    if (err.message.includes("no upstream branch")) {
-      const status = await git.status();
+    if (err.message.includes("no upstream branch") || err.message.includes("has no upstream branch")) {
+      // Re-use currentBranch from the try block to avoid a redundant git.status() call
+      const branchToShow = currentBranch || "YOUR_BRANCH";
       throw new Error(
-        `No upstream branch set. Run: git push --set-upstream origin ${status.current}`
+        `No upstream branch set. Run: git push --set-upstream origin ${branchToShow}`
       );
     }
     throw new Error(`Git push failed: ${err.message}`);
@@ -62,10 +68,14 @@ export async function pushToRemote() {
  * @param {string|string[]} files - File path(s) to stage
  */
 export async function stageFiles(files) {
+  // Prevent git errors if called with empty arguments
+  if (!files || (Array.isArray(files) && files.length === 0)) {
+    return;
+  }
+
   try {
     await git.add(files);
   } catch (err) {
     throw new Error(`Failed to stage files: ${err.message}`);
   }
 }
-

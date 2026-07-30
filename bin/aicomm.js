@@ -12,14 +12,14 @@ program
   .option("-v, --verbose", "Show detailed output")
   .option("-p, --push", "Push changes after committing")
   .option("-s, --stage-all", "Stage all changes before generating")
-  .option("-m, --model <name>", "Specify Gemini model", "gemini-3-flash-preview")
+  .option("-m, --model <name>", "Specify Gemini model", "gemini-3.6-flash")
   .option("--no-ai", "Skip AI generation and use fallback");
 
 program.parse(process.argv);
 const options = program.opts();
 
 async function run() {
-  // Dynamic imports for faster initial startup
+  // Dynamic imports for faster initial CLI startup
   const [
     { default: ora },
     { default: pc },
@@ -40,7 +40,7 @@ async function run() {
     import("../src/git/diff.js"),
     import("../src/ai/generateCommit.js"),
     import("../src/ui/prompt.js"),
-    import("../src/commit.js"),
+    import("../src/commit.js"), 
     import("../src/utils/validation.js")
   ]);
 
@@ -48,7 +48,7 @@ async function run() {
     boxen(pc.bold(pc.cyan("AICOMM 🤖")), {
       padding: { left: 3, right: 3 },
       margin: { top: 1, bottom: 1 },
-      borderStyle: "double",
+      borderStyle: "single", // Sharper, cleaner UI line
       borderColor: "cyan",
       title: "v1.1.0",
       titleAlignment: "right"
@@ -58,7 +58,14 @@ async function run() {
   const spinner = ora();
 
   try {
-    // 1. Validation
+    // 1. Environment Validation (Was imported but never executed)
+    const envCheck = await validateEnvironment();
+    if (!envCheck.valid) {
+      console.error(`${pc.red(figures.cross)} ${pc.bold(envCheck.error)}`);
+      process.exit(1);
+    }
+
+    // 2. API Validation
     if (!options.noAi) {
       const apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key;
       if (!apiKey) {
@@ -68,7 +75,7 @@ async function run() {
       }
     }
 
-    // 2. Status Check
+    // 3. Status Check
     spinner.start(pc.dim("Scanning workspace..."));
     const status = await getGitStatus();
     spinner.stop();
@@ -85,14 +92,14 @@ async function run() {
       spinner.succeed(pc.green("All changes staged"));
     }
 
-    // 3. Summary Display
+    // 4. Summary Display
     console.log(pc.bold(pc.underline("Workspace Summary")));
     console.log(`${pc.yellow(figures.bullet)} Modified: ${pc.bold(status.modified.length)}`);
     console.log(`${pc.green(figures.bullet)} Created:  ${pc.bold(status.not_added.length)}`);
     console.log(`${pc.red(figures.bullet)} Deleted:  ${pc.bold(status.deleted.length)}`);
     console.log(`${pc.blue(figures.bullet)} Staged:   ${pc.bold(status.staged.length)}\n`);
 
-    // 4. Diff Logic
+    // 5. Diff Logic
     spinner.start(pc.dim("Analyzing changes..."));
     const diff = await getGitDiff({ staged: true, unstaged: !status.hasStagedChanges });
     spinner.stop();
@@ -102,16 +109,28 @@ async function run() {
       return;
     }
 
-    // 5. AI Generation
+    // 6. AI Generation & User Interaction Loop (Handles the "Regenerate" action)
+    let finalMessage;
     let aiMessage = "chore: update files";
-    if (!options.noAi) {
-      spinner.start(pc.magenta(`AI is thinking...`));
-      aiMessage = await generateCommitMessage(diff, options, spinner);
-      spinner.succeed(pc.green("AI suggestion ready"));
-    }
 
-    // 6. User Prompt
-    const finalMessage = await askCommitMessage(aiMessage);
+    while (true) {
+      if (!options.noAi) {
+        spinner.start(pc.magenta(`AI is thinking...`));
+        aiMessage = await generateCommitMessage(diff, options, spinner);
+        spinner.succeed(pc.green("AI suggestion ready"));
+      }
+
+      finalMessage = await askCommitMessage(aiMessage);
+
+      // If user selected "Regenerate message", loop back and run the AI again
+      if (finalMessage === "regenerate") {
+        console.log(pc.dim("\nRetrying generation..."));
+        continue;
+      }
+      
+      // Break the loop once we have a valid, accepted message
+      break; 
+    }
 
     if (!finalMessage?.trim()) {
       console.error(`${pc.red(figures.cross)} Commit message cannot be empty.`);
@@ -133,6 +152,7 @@ async function run() {
       boxen(pc.green(finalMessage), {
         title: "Final Commit",
         padding: 1,
+        borderStyle: "single",
         borderColor: "green",
         margin: { top: 1 },
       })
@@ -159,4 +179,3 @@ async function run() {
 }
 
 run();
-
