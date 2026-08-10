@@ -3,15 +3,20 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { saveApiKey, getApiKey, getMaskedApiKey, readConfig } from "../src/utils/config.js";
+import { saveApiKey, getApiKey, getMaskedApiKey } from "../src/utils/config.js";
 import { validateCommitMessage } from "../src/utils/validation.js";
-import { generateUntrackedDiff } from "../src/git/diff.js";
+import {
+  generateUntrackedDiff,
+  getFileIgnoreStatus,
+  parseDiffIntoFiles,
+  budgetAndFormatDiffs,
+  buildChangesSummaryHeader,
+} from "../src/git/diff.js";
 
 describe("Config Utility", () => {
   const originalKey = getApiKey();
 
   after(() => {
-    // Restore key if it originally existed
     if (originalKey) {
       saveApiKey(originalKey);
     }
@@ -63,31 +68,76 @@ describe("Validation Utility", () => {
   });
 });
 
-describe("Diff Generation & Untracked Files", () => {
-  const tempDir = path.join(os.tmpdir(), "aicomm-test-" + Date.now());
-  const sampleFile = path.join(tempDir, "sample.js");
-  const lockFile = path.join(tempDir, "package-lock.json");
-
-  before(() => {
-    fs.mkdirSync(tempDir, { recursive: true });
-    fs.writeFileSync(sampleFile, "console.log('hello world');\nconst x = 10;", "utf8");
-    fs.writeFileSync(lockFile, '{"lockfileVersion": 3}', "utf8");
+describe("File Ignore & Filtering", () => {
+  it("should ignore lock files", () => {
+    assert.equal(getFileIgnoreStatus("package-lock.json").ignored, true);
+    assert.equal(getFileIgnoreStatus("pnpm-lock.yaml").ignored, true);
+    assert.equal(getFileIgnoreStatus("bun.lockb").ignored, true);
   });
 
-  after(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+  it("should ignore minified files and source maps", () => {
+    assert.equal(getFileIgnoreStatus("dist/bundle.min.js").ignored, true);
+    assert.equal(getFileIgnoreStatus("styles.min.css").ignored, true);
+    assert.equal(getFileIgnoreStatus("app.js.map").ignored, true);
   });
 
-  it("should generate diff representation for untracked files", () => {
-    const diff = generateUntrackedDiff([sampleFile]);
-    assert.ok(diff.includes("--- /dev/null"));
-    assert.ok(diff.includes("+console.log('hello world');"));
-    assert.ok(diff.includes("+const x = 10;"));
+  it("should ignore SVGs, images, and binary files", () => {
+    assert.equal(getFileIgnoreStatus("assets/logo.svg").ignored, true);
+    assert.equal(getFileIgnoreStatus("public/banner.png").ignored, true);
+    assert.equal(getFileIgnoreStatus("font.woff2").ignored, true);
   });
 
-  it("should ignore lockfiles by default", () => {
-    const diff = generateUntrackedDiff([sampleFile, lockFile], true);
-    assert.ok(!diff.includes("lockfileVersion"));
-    assert.ok(diff.includes("sample.js"));
+  it("should ignore build output directories", () => {
+    assert.equal(getFileIgnoreStatus("dist/index.html").ignored, true);
+    assert.equal(getFileIgnoreStatus("build/static/js/main.js").ignored, true);
+    assert.equal(getFileIgnoreStatus(".next/server/page.js").ignored, true);
+  });
+
+  it("should NOT ignore standard source files", () => {
+    assert.equal(getFileIgnoreStatus("src/index.js").ignored, false);
+    assert.equal(getFileIgnoreStatus("components/Button.tsx").ignored, false);
+    assert.equal(getFileIgnoreStatus("README.md").ignored, false);
+  });
+});
+
+describe("Smart Diff Budgeting & Summary Headers", () => {
+  it("should build a summary header with changes and annotations", () => {
+    const diffSummaryFiles = [
+      { file: "src/app.js", insertions: 15, deletions: 2, binary: false },
+      { file: "public/icon.svg", insertions: 100, deletions: 0, binary: false },
+    ];
+    const untrackedBlocks = [
+      { file: "docs/readme.md", lineCount: 13, ignored: false },
+    ];
+
+    const header = buildChangesSummaryHeader(diffSummaryFiles, untrackedBlocks);
+    assert.ok(header.includes("CHANGES SUMMARY:"));
+    assert.ok(header.includes("src/app.js (+15/-2)"));
+    assert.ok(header.includes("public/icon.svg (+100/-0) [SVG asset/binary]"));
+    assert.ok(header.includes("docs/readme.md (+10/-0) (Untracked)"));
+  });
+
+  it("should proportionally budget large diffs across multiple files", () => {
+    const hugeLines = Array.from({ length: 500 }, (_, i) => `+line ${i}`);
+    const smallLines = Array.from({ length: 15 }, (_, i) => `+small line ${i}`);
+
+    const fileBlocks = [
+      { file: "huge.js", lines: hugeLines, lineCount: 500, ignored: false, content: hugeLines.join("\n") },
+      { file: "small.js", lines: smallLines, lineCount: 15, ignored: false, content: smallLines.join("\n") },
+    ];
+
+    const budgeted = budgetAndFormatDiffs(fileBlocks, 100);
+    // Small file should be fully preserved
+    assert.ok(budgeted.includes("small line 14"));
+    // Huge file should be truncated with a marker
+    assert.ok(budgeted.includes("lines truncated for huge.js"));
+  });
+
+  it("should parse unified diff text into individual files", () => {
+    const rawDiff = `diff --git a/file1.js b/file1.js\n--- a/file1.js\n+++ b/file1.js\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/file2.js b/file2.js\n--- a/file2.js\n+++ b/file2.js\n@@ -1 +1 @@\n+added`;
+    const files = parseDiffIntoFiles(rawDiff);
+    assert.equal(files.length, 2);
+    assert.equal(files[0].file, "file1.js");
+    assert.equal(files[1].file, "file2.js");
   });
 });

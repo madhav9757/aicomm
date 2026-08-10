@@ -31,26 +31,26 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
       spinner.text = pc.cyan(`Gemini (${model}) is analyzing changes...`);
     }
 
-    const prompt = `
-      You are an expert software engineer following best practices for git commits.
-      Write a professional, concise, and clear git commit message based on the following diff.
-      
-      RULES:
-      1. Use the Conventional Commits format (type: description).
-      2. Types: feat, fix, chore, docs, style, refactor, perf, test, build, ci.
-      3. The first line (subject) should be max 72 characters.
-      4. If the changes are complex, add a blank line followed by a bulleted list of focus areas (WHY and WHAT, not HOW).
-      5. Do not include any meta-talk like "Sure, here is your message" or markdown wrappers.
-      6. Output ONLY the raw commit message text.
-      7. Keep the total length under 800 characters.
+    const systemInstruction = `You are an expert software engineer following best practices for git commits.
+Generate a concise, high-quality git commit message following Conventional Commits format based on the diff and summary of changes provided.
 
-      DIFF:
-      ${diff.slice(0, 10000)}
-    `;
+RULES:
+1. Format: <type>(<optional scope>): <description>
+2. Allowed types: feat, fix, chore, docs, style, refactor, perf, test, build, ci.
+3. First line (subject) MUST be 72 characters or fewer, written in lowercase imperative mood (e.g., 'feat: add user login', not 'feat: Added user login').
+4. If changes are complex or span multiple focus areas, add a blank line after the subject followed by a bulleted body explaining WHAT and WHY (not mechanical HOW).
+5. Output ONLY the raw commit message text. No markdown code blocks, no quotes, no conversational prefixes.
+6. Keep total length under 800 characters.`;
+
+    const userPrompt = `Analyze the following changes and generate an appropriate Conventional Commit message:\n\n${diff}`;
 
     const response = await ai.models.generateContent({
       model: model,
-      contents: prompt,
+      contents: userPrompt,
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: 0.2,
+      },
     });
 
     let text = response.text ? response.text.trim() : "";
