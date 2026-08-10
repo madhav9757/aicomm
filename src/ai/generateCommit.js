@@ -17,8 +17,8 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
     return "chore: update files";
   }
 
-  // 1. LAZY INITIALIZATION: Check for the key down here, inside the function!
-  const apiKey = (process.env.GEMINI_API_KEY || process.env.geminie_key || getApiKey() || "").trim();
+  // 1. LAZY INITIALIZATION: Check for the key inside the function
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || getApiKey() || "").trim();
   
   if (!apiKey) {
     throw new Error("Missing API Key. Run 'aicomm auth <your_api_key>' to set it globally.");
@@ -64,7 +64,30 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
     if (spinner) {
       spinner.fail(pc.red("AI Generation failed"));
     }
-    console.error(pc.red(`\nError: ${err.message}`));
+
+    let errorMessage = err.message || "Unknown error";
+    try {
+      const parsed = JSON.parse(errorMessage);
+      if (parsed.error?.message) {
+        errorMessage = parsed.error.message;
+      }
+    } catch {
+      // not JSON, use raw message
+    }
+
+    if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {
+      throw new Error(
+        `Invalid Gemini API Key.\nUpdate it by running: ${pc.cyan("aicomm auth <your_api_key>")}`
+      );
+    }
+
+    if (errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("quota")) {
+      throw new Error(
+        `Gemini API quota exceeded.\nPlease wait a moment or check your account limits at https://aistudio.google.com/`
+      );
+    }
+
+    console.error(pc.red(`\nError: ${errorMessage}`));
     if (err.stack && options.verbose) console.error(pc.dim(err.stack));
 
     return "chore: update files (fallback)";

@@ -13,10 +13,8 @@ import { getGitDiff } from "../src/git/diff.js";
 import { generateCommitMessage } from "../src/ai/generateCommit.js";
 import { askCommitMessage } from "../src/ui/prompt.js";
 import { commitChanges, pushToRemote, stageFiles } from "../src/commit.js";
-import { validateEnvironment } from "../src/utils/validation.js";
-
-// 👇 Here is the missing import that caused the crash!
-import { getApiKey, saveApiKey } from "../src/utils/config.js"; 
+import { getApiKey, saveApiKey, getMaskedApiKey, getConfigPath } from "../src/utils/config.js";
+import { validateEnvironment, validateCommitMessage } from "../src/utils/validation.js";
 
 const program = new Command();
 
@@ -29,12 +27,59 @@ program
   .option("-p, --push", "Push changes after committing")
   .option("-s, --stage-all", "Stage all changes before generating")
   .option("-m, --model <name>", "Specify Gemini model", "gemini-3.6-flash")
-  .option("--no-ai", "Skip AI generation and use fallback");
+  .option("--no-ai", "Skip AI generation and use fallback")
+  .action(async (options) => {
+    await run(options);
+  });
 
-program.parse(process.argv);
-const options = program.opts();
+program
+  .command("auth [apiKey]")
+  .description("Save or update your Gemini API key globally")
+  .action(async (apiKey) => {
+    try {
+      let keyToSave = apiKey;
+      if (!keyToSave) {
+        const currentMasked = getMaskedApiKey();
+        if (currentMasked) {
+          console.log(pc.dim(`Current configured key: ${currentMasked}`));
+        }
+        const { inputKey } = await inquirer.prompt([
+          {
+            type: "password",
+            name: "inputKey",
+            message: "Enter your Gemini API Key:",
+            mask: "*",
+          },
+        ]);
+        keyToSave = inputKey;
+      }
 
-async function run() {
+      if (!keyToSave || !keyToSave.trim()) {
+        console.error(`${pc.red(figures.cross)} No API Key provided.`);
+        process.exit(1);
+      }
+
+      saveApiKey(keyToSave.trim());
+      console.log(
+        boxen(
+          `${pc.green(figures.tick)} ${pc.bold("API Key saved globally!")}\n${pc.dim(
+            "Config file: " + getConfigPath()
+          )}`,
+          {
+            padding: 1,
+            borderColor: "green",
+            borderStyle: "round",
+            margin: { top: 1, bottom: 1 },
+          }
+        )
+      );
+    } catch (err) {
+      console.error(`${pc.red(figures.cross)} Failed to save API key: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+async function run(options = {}) {
   console.log(
     boxen(pc.bold(pc.cyan("AICOMM 🤖")), {
       padding: { left: 3, right: 3 },
@@ -42,7 +87,7 @@ async function run() {
       borderStyle: "single",
       borderColor: "cyan",
       title: "v1.1.0",
-      titleAlignment: "right"
+      titleAlignment: "right",
     })
   );
 
@@ -57,16 +102,18 @@ async function run() {
     }
 
     // 2. API Validation & Interactive Setup
-    if (!options.noAi) {
-      let apiKey = process.env.GEMINI_API_KEY || process.env.geminie_key || getApiKey();
-      
+    const isAiEnabled = options.ai !== false;
+
+    if (isAiEnabled) {
+      let apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || getApiKey();
+
       if (!apiKey) {
         console.log(`\n${pc.yellow(figures.warning)} ${pc.bold("No API Key Found")}`);
         console.log(pc.dim("Let's set it up! Your key will be saved securely on your machine."));
-        
+
         const { newKey } = await inquirer.prompt([
           {
-            type: "password", // This masks the input with asterisks
+            type: "password",
             name: "newKey",
             message: "Enter your Gemini API Key:",
             mask: "*",
@@ -78,7 +125,6 @@ async function run() {
           process.exit(1);
         }
 
-        // Save it globally
         saveApiKey(newKey.trim());
         console.log(pc.green(`${figures.tick} API Key saved globally!\n`));
       }
@@ -95,21 +141,30 @@ async function run() {
     }
 
     if (options.stageAll && status.hasUnstagedChanges) {
-      spinner.start(pc.dim("Staging changes..."));
+      spinner.start(pc.dim("Staging all changes..."));
       await stageFiles(".");
       spinner.succeed(pc.green("All changes staged"));
     }
 
+    // Refresh status after staging if needed
+    const currentStatus = options.stageAll ? await getGitStatus() : status;
+
     // 4. Summary Display
     console.log(pc.bold(pc.underline("Workspace Summary")));
-    console.log(`${pc.yellow(figures.bullet)} Modified: ${pc.bold(status.modified.length)}`);
-    console.log(`${pc.green(figures.bullet)} Created:  ${pc.bold(status.not_added.length)}`);
-    console.log(`${pc.red(figures.bullet)} Deleted:  ${pc.bold(status.deleted.length)}`);
-    console.log(`${pc.blue(figures.bullet)} Staged:   ${pc.bold(status.staged.length)}\n`);
+    console.log(`${pc.yellow(figures.bullet)} Modified: ${pc.bold(currentStatus.modified.length)}`);
+    console.log(`${pc.green(figures.bullet)} Created:  ${pc.bold(currentStatus.not_added.length)}`);
+    console.log(`${pc.red(figures.bullet)} Deleted:  ${pc.bold(currentStatus.deleted.length)}`);
+    console.log(`${pc.blue(figures.bullet)} Staged:   ${pc.bold(currentStatus.staged.length)}\n`);
 
-    // 5. Diff Logic
+    // 5. Diff Logic (incorporates untracked files if unstaged)
     spinner.start(pc.dim("Analyzing changes..."));
-    const diff = await getGitDiff({ staged: true, unstaged: !status.hasStagedChanges });
+    const hasStaged = currentStatus.hasStagedChanges;
+    const diff = await getGitDiff({
+      staged: true,
+      unstaged: !hasStaged,
+      includeUntracked: !hasStaged,
+      untrackedFiles: !hasStaged ? currentStatus.not_added : null,
+    });
     spinner.stop();
 
     if (!diff?.trim()) {
@@ -122,7 +177,7 @@ async function run() {
     let aiMessage = "chore: update files";
 
     while (true) {
-      if (!options.noAi) {
+      if (isAiEnabled) {
         spinner.start(pc.magenta(`AI is thinking...`));
         aiMessage = await generateCommitMessage(diff, options, spinner);
         spinner.succeed(pc.green("AI suggestion ready"));
@@ -134,13 +189,21 @@ async function run() {
         console.log(pc.dim("\nRetrying generation..."));
         continue;
       }
-      
-      break; 
+
+      break;
     }
 
     if (!finalMessage?.trim()) {
       console.error(`${pc.red(figures.cross)} Commit message cannot be empty.`);
       process.exit(1);
+    }
+
+    // Validate commit message formatting and display warnings if any
+    const validation = validateCommitMessage(finalMessage);
+    if (validation.warnings && validation.warnings.length > 0) {
+      for (const warning of validation.warnings) {
+        console.log(`${pc.yellow(figures.warning)} ${pc.yellow(warning)}`);
+      }
     }
 
     // 7. Execution
@@ -184,4 +247,4 @@ async function run() {
   }
 }
 
-run();
+program.parse(process.argv);
