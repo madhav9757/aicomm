@@ -16,13 +16,10 @@ export const LOCK_FILES = new Set([
 ]);
 
 export const IGNORE_EXTENSIONS = new Set([
-  // Minified files
   ".min.js",
   ".min.css",
   ".bundle.js",
-  // Source maps
   ".map",
-  // Vector graphics & Images
   ".svg",
   ".png",
   ".jpg",
@@ -33,13 +30,11 @@ export const IGNORE_EXTENSIONS = new Set([
   ".bmp",
   ".tiff",
   ".avif",
-  // Fonts & Documents
   ".pdf",
   ".woff",
   ".woff2",
   ".ttf",
   ".eot",
-  // Binaries & Archives
   ".zip",
   ".tar",
   ".gz",
@@ -67,30 +62,22 @@ export const IGNORE_DIRS = [
   "node_modules/",
 ];
 
-/**
- * Check if a file should be ignored from diff content
- * @param {string} filePath
- * @returns {{ ignored: boolean, reason?: string }}
- */
 export function getFileIgnoreStatus(filePath) {
   if (!filePath) return { ignored: false };
 
   const normalized = filePath.replace(/\\/g, "/");
   const fileName = path.basename(normalized);
 
-  // Check lock files
   if (LOCK_FILES.has(fileName)) {
     return { ignored: true, reason: "Lockfile" };
   }
 
-  // Check directories
   for (const dir of IGNORE_DIRS) {
     if (normalized.startsWith(dir) || normalized.includes(`/${dir}`)) {
       return { ignored: true, reason: `Build/cache directory (${dir})` };
     }
   }
 
-  // Check compound extensions like .min.js or .min.css
   const lowerName = fileName.toLowerCase();
   if (lowerName.endsWith(".min.js")) return { ignored: true, reason: "Minified JS" };
   if (lowerName.endsWith(".min.css")) return { ignored: true, reason: "Minified CSS" };
@@ -104,11 +91,6 @@ export function getFileIgnoreStatus(filePath) {
   return { ignored: false };
 }
 
-/**
- * Split unified diff text into individual per-file blocks
- * @param {string} rawDiff
- * @returns {Array<{ file: string, content: string, lines: string[], lineCount: number, ignored: boolean, ignoreReason?: string }>}
- */
 export function parseDiffIntoFiles(rawDiff) {
   if (!rawDiff || !rawDiff.trim()) return [];
 
@@ -149,11 +131,6 @@ export function parseDiffIntoFiles(rawDiff) {
   return fileChunks;
 }
 
-/**
- * Generate diff blocks for untracked files
- * @param {string[]} untrackedFiles
- * @returns {Array<{ file: string, content: string, lines: string[], lineCount: number, ignored: boolean, ignoreReason?: string, isUntracked: boolean }>}
- */
 export function getUntrackedFileBlocks(untrackedFiles = []) {
   if (!untrackedFiles || untrackedFiles.length === 0) return [];
 
@@ -245,16 +222,9 @@ export function getUntrackedFileBlocks(untrackedFiles = []) {
   return blocks;
 }
 
-/**
- * Budget and truncate diff blocks proportionally
- * @param {Array} fileBlocks
- * @param {number} maxLines
- * @returns {string} Budgeted diff string
- */
 export function budgetAndFormatDiffs(fileBlocks, maxLines = 300) {
   if (!fileBlocks || fileBlocks.length === 0) return "";
 
-  // Separate active text diffs from ignored files
   const activeBlocks = fileBlocks.filter((b) => !b.ignored);
   if (activeBlocks.length === 0) {
     return fileBlocks.map((b) => b.content).join("\n\n");
@@ -262,12 +232,10 @@ export function budgetAndFormatDiffs(fileBlocks, maxLines = 300) {
 
   const totalActiveLines = activeBlocks.reduce((sum, b) => sum + b.lineCount, 0);
 
-  // If within budget, include all lines directly
   if (totalActiveLines <= maxLines) {
     return activeBlocks.map((b) => b.content).join("\n\n");
   }
 
-  // Proportional line budgeting across active files
   const numFiles = activeBlocks.length;
   const minLinesPerFile = Math.max(12, Math.floor(maxLines / (numFiles * 2)));
   const maxLinesPerFile = Math.max(40, Math.floor(maxLines * 0.45));
@@ -291,12 +259,6 @@ export function budgetAndFormatDiffs(fileBlocks, maxLines = 300) {
   return budgetedChunks.join("\n\n");
 }
 
-/**
- * Build a concise summary header of all changed files
- * @param {Array} diffSummaryFiles - files from git.diffSummary() or status
- * @param {Array} untrackedBlocks - untracked file blocks
- * @returns {string} Summary header
- */
 export function buildChangesSummaryHeader(diffSummaryFiles = [], untrackedBlocks = []) {
   const lines = ["CHANGES SUMMARY:"];
 
@@ -324,21 +286,12 @@ export function buildChangesSummaryHeader(diffSummaryFiles = [], untrackedBlocks
   return lines.join("\n");
 }
 
-/**
- * Backward compatibility helper for untracked diff generation
- * @param {string[]} untrackedFiles
- * @returns {string}
- */
 export function generateUntrackedDiff(untrackedFiles = []) {
   const blocks = getUntrackedFileBlocks(untrackedFiles);
   return blocks.map((b) => b.content).join("\n\n");
 }
 
-/**
- * Get git diff with intelligent formatting, summary headers, and proportional budgeting
- * @param {object} options - Options for diff
- * @returns {Promise<string>} Git diff output
- */
+
 export async function getGitDiff(options = {}) {
   try {
     const {
@@ -352,13 +305,11 @@ export async function getGitDiff(options = {}) {
     let diffArgs = ["--unified=3"];
     if (staged) diffArgs.push("--staged");
 
-    // Fetch diff and diff summary concurrently
     let [rawDiff, summary] = await Promise.all([
       git.diff(diffArgs),
       git.diffSummary(diffArgs).catch(() => ({ files: [] })),
     ]);
 
-    // If staged diff is empty and unstaged is enabled
     if (!rawDiff.trim() && staged && unstaged) {
       const unstagedArgs = ["--unified=3"];
       [rawDiff, summary] = await Promise.all([
@@ -367,10 +318,8 @@ export async function getGitDiff(options = {}) {
       ]);
     }
 
-    // Parse git diff into per-file chunks
     const diffBlocks = parseDiffIntoFiles(rawDiff);
 
-    // Handle untracked files
     let untrackedBlocks = [];
     if (includeUntracked && (unstaged || untrackedFiles)) {
       let filesToInspect = untrackedFiles;
@@ -383,15 +332,12 @@ export async function getGitDiff(options = {}) {
       }
     }
 
-    // If nothing changed across diffs and untracked
     if (diffBlocks.length === 0 && untrackedBlocks.length === 0) {
       return "";
     }
 
-    // Generate summary header
     const summaryHeader = buildChangesSummaryHeader(summary.files || [], untrackedBlocks);
 
-    // Combine all file blocks and budget them proportionally
     const allBlocks = [...diffBlocks, ...untrackedBlocks];
     const budgetedDiff = budgetAndFormatDiffs(allBlocks, maxLines);
 
@@ -405,10 +351,7 @@ export async function getGitDiff(options = {}) {
   }
 }
 
-/**
- * Get diff statistics
- * @returns {Promise<object>} Diff stats
- */
+
 export async function getDiffStats() {
   try {
     const status = await git.status();
