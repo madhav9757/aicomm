@@ -2,10 +2,6 @@ import simpleGit from "simple-git";
 
 const git = simpleGit();
 
-/**
- * Get git status with enhanced information
- * @returns {Promise<object>} Enhanced status object
- */
 export async function getGitStatus() {
   try {
     const status = await git.status();
@@ -25,10 +21,6 @@ export async function getGitStatus() {
   }
 }
 
-/**
- * Check if repository is clean (no uncommitted changes)
- * @returns {Promise<boolean>}
- */
 export async function isClean() {
   try {
     const status = await git.status();
@@ -38,21 +30,12 @@ export async function isClean() {
   }
 }
 
-/**
- * Check if there are uncommitted changes
- * @returns {Promise<boolean>}
- */
 export async function hasUncommittedChanges() {
   return !(await isClean());
 }
 
-/**
- * Get current branch information
- * @returns {Promise<object>} Branch info
- */
 export async function getBranchInfo() {
   try {
-    // Execute git queries concurrently to minimize I/O latency
     const [status, branches] = await Promise.all([
       git.status(),
       git.branch()

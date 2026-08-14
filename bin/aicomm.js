@@ -94,14 +94,12 @@ async function run(options = {}) {
   const spinner = ora();
 
   try {
-    // 1. Environment Validation
     const envCheck = await validateEnvironment();
     if (!envCheck.valid) {
       console.error(`${pc.red(figures.cross)} ${pc.bold(envCheck.error)}`);
       process.exit(1);
     }
 
-    // 2. API Validation & Interactive Setup
     const isAiEnabled = options.ai !== false;
 
     if (isAiEnabled) {
@@ -130,7 +128,6 @@ async function run(options = {}) {
       }
     }
 
-    // 3. Status Check
     spinner.start(pc.dim("Scanning workspace..."));
     const status = await getGitStatus();
     spinner.stop();
@@ -146,17 +143,14 @@ async function run(options = {}) {
       spinner.succeed(pc.green("All changes staged"));
     }
 
-    // Refresh status after staging if needed
     const currentStatus = options.stageAll ? await getGitStatus() : status;
 
-    // 4. Summary Display
     console.log(pc.bold(pc.underline("Workspace Summary")));
     console.log(`${pc.yellow(figures.bullet)} Modified: ${pc.bold(currentStatus.modified.length)}`);
     console.log(`${pc.green(figures.bullet)} Created:  ${pc.bold(currentStatus.not_added.length)}`);
     console.log(`${pc.red(figures.bullet)} Deleted:  ${pc.bold(currentStatus.deleted.length)}`);
     console.log(`${pc.blue(figures.bullet)} Staged:   ${pc.bold(currentStatus.staged.length)}\n`);
 
-    // 5. Diff Logic (incorporates untracked files if unstaged)
     spinner.start(pc.dim("Analyzing changes..."));
     const hasStaged = currentStatus.hasStagedChanges;
     const diff = await getGitDiff({
@@ -172,7 +166,6 @@ async function run(options = {}) {
       return;
     }
 
-    // 6. AI Generation Loop
     let finalMessage;
     let aiMessage = "chore: update files";
 
@@ -198,7 +191,6 @@ async function run(options = {}) {
       process.exit(1);
     }
 
-    // Validate commit message formatting and display warnings if any
     const validation = validateCommitMessage(finalMessage);
     if (validation.warnings && validation.warnings.length > 0) {
       for (const warning of validation.warnings) {
@@ -206,7 +198,6 @@ async function run(options = {}) {
       }
     }
 
-    // 7. Execution
     if (options.dryRun) {
       console.log(`\n${pc.yellow(figures.warning)} ${pc.bold("DRY RUN MODE")}`);
       console.log(boxen(pc.italic(finalMessage), { padding: 1, borderColor: "yellow", title: "Proposed Message" }));

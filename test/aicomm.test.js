@@ -127,9 +127,7 @@ describe("Smart Diff Budgeting & Summary Headers", () => {
     ];
 
     const budgeted = budgetAndFormatDiffs(fileBlocks, 100);
-    // Small file should be fully preserved
     assert.ok(budgeted.includes("small line 14"));
-    // Huge file should be truncated with a marker
     assert.ok(budgeted.includes("lines truncated for huge.js"));
   });
 

@@ -5,11 +5,6 @@ import { getApiKey } from "../utils/config.js";
 
 const DEFAULT_MODEL = 'gemini-3.6-flash';
 
-// DO NOT put the API key check up here! It will crash on import.
-
-/**
- * Generate a commit message using Gemini AI
- */
 export async function generateCommitMessage(diff, options = {}, spinner) {
   const { model = DEFAULT_MODEL } = options;
 
@@ -17,7 +12,6 @@ export async function generateCommitMessage(diff, options = {}, spinner) {
     return "chore: update files";
   }
 
-  // 1. LAZY INITIALIZATION: Check for the key inside the function
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || getApiKey() || "").trim();
   
   if (!apiKey) {
@@ -72,7 +66,6 @@ RULES:
         errorMessage = parsed.error.message;
       }
     } catch {
-      // not JSON, use raw message
     }
 
     if (errorMessage.includes("API key not valid") || errorMessage.includes("API_KEY_INVALID")) {

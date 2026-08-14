@@ -1,11 +1,6 @@
 import inquirer from "inquirer";
 import pc from "picocolors";
 
-/**
- * Ask user what to do with the generated message
- * @param {string} aiMessage - AI-generated message
- * @returns {Promise<string>} Final commit message or 'regenerate' flag
- */
 export async function askCommitMessage(aiMessage) {
   console.log(`\n${pc.bold(pc.cyan("🤖 AI Suggested Commit Message:"))}`);
   console.log(pc.dim("─".repeat(50)));
@@ -36,7 +31,6 @@ export async function askCommitMessage(aiMessage) {
   }
 
   if (action === "edit") {
-    // Forced "input" type to keep the editing strictly inline in the terminal prompt
     const { editedMessage } = await inquirer.prompt([
       {
         type: "input",
@@ -58,11 +52,6 @@ export async function askCommitMessage(aiMessage) {
   return aiMessage;
 }
 
-/**
- * Ask user to select files to commit
- * @param {Array} files - List of changed files
- * @returns {Promise<string[]>} Selected files
- */
 export async function selectFiles(files) {
   if (!files || files.length === 0) {
     return [];
@@ -94,12 +83,6 @@ export async function selectFiles(files) {
   return selectedFiles;
 }
 
-/**
- * Confirm action with user
- * @param {string} message - Confirmation message
- * @param {boolean} defaultValue - Default answer
- * @returns {Promise<boolean>}
- */
 export async function confirmAction(message, defaultValue = true) {
   const { confirmed } = await inquirer.prompt([
     {
