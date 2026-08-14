@@ -11,7 +11,7 @@ import figures from "figures";
 import { getGitStatus } from "../src/git/status.js";
 import { getGitDiff } from "../src/git/diff.js";
 import { generateCommitMessage } from "../src/ai/generateCommit.js";
-import { askCommitMessage } from "../src/ui/prompt.js";
+import { askCommitMessage, selectFiles } from "../src/ui/prompt.js";
 import { commitChanges, pushToRemote, stageFiles } from "../src/commit.js";
 import { getApiKey, saveApiKey, getMaskedApiKey, getConfigPath } from "../src/utils/config.js";
 import { validateEnvironment, validateCommitMessage } from "../src/utils/validation.js";
@@ -137,13 +137,24 @@ async function run(options = {}) {
       return;
     }
 
+    let currentStatus = status;
+
     if (options.stageAll && status.hasUnstagedChanges) {
       spinner.start(pc.dim("Staging all changes..."));
       await stageFiles(".");
       spinner.succeed(pc.green("All changes staged"));
+      currentStatus = await getGitStatus();
+    } else if (!options.stageAll && status.staged.length === 0 && status.hasUnstagedChanges) {
+      const filesToStage = await selectFiles(status.files);
+      if (filesToStage.length === 0) {
+        console.log(pc.yellow("No files selected. Aborting."));
+        process.exit(0);
+      }
+      spinner.start(pc.dim("Staging selected changes..."));
+      await stageFiles(filesToStage);
+      spinner.succeed(pc.green("Selected changes staged"));
+      currentStatus = await getGitStatus();
     }
-
-    const currentStatus = options.stageAll ? await getGitStatus() : status;
 
     console.log(pc.bold(pc.underline("Workspace Summary")));
     console.log(`${pc.yellow(figures.bullet)} Modified: ${pc.bold(currentStatus.modified.length)}`);
