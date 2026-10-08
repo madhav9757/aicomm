@@ -22,11 +22,6 @@ export async function validateEnvironment() {
   }
 }
 
-export async function isGitRepository() {
-  const result = await validateEnvironment();
-  return result.valid;
-}
-
 export function validateCommitMessage(message) {
   const warnings = [];
 

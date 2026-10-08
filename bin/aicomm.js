@@ -25,6 +25,7 @@ program
   .option("-d, --dry-run", "Generate commit message without committing")
   .option("-v, --verbose", "Show detailed output")
   .option("-p, --push", "Push changes after committing")
+  .option("-u, --set-upstream", "Set upstream branch when pushing")
   .option("-s, --stage-all", "Stage all changes before generating")
   .option("-m, --model <name>", "Specify Gemini model", "gemini-3.6-flash")
   .option("--no-ai", "Skip AI generation and use fallback")
@@ -209,6 +210,13 @@ async function run(options = {}) {
       }
     }
 
+    if (!validation.valid) {
+      console.error(`${pc.red(figures.cross)} ${validation.warnings?.[0] || "Invalid commit message."}`);
+      process.exit(1);
+    }
+
+    finalMessage = validation.cleanedMessage;
+
     if (options.dryRun) {
       console.log(`\n${pc.yellow(figures.warning)} ${pc.bold("DRY RUN MODE")}`);
       console.log(boxen(pc.italic(finalMessage), { padding: 1, borderColor: "yellow", title: "Proposed Message" }));
@@ -232,7 +240,7 @@ async function run(options = {}) {
     if (options.push) {
       spinner.start(pc.blue("Pushing to remote..."));
       try {
-        await pushToRemote();
+        await pushToRemote({ setUpstream: options.setUpstream });
         spinner.succeed(pc.blue("Synced with remote!"));
       } catch (err) {
         spinner.fail(pc.red("Push failed"));

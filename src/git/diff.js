@@ -352,21 +352,3 @@ export async function getGitDiff(options = {}) {
 }
 
 
-export async function getDiffStats() {
-  try {
-    const status = await git.status();
-
-    return {
-      modified: status.modified,
-      created: status.not_added,
-      deleted: status.deleted,
-      staged: status.staged,
-      total: {
-        files: status.files.length,
-      },
-    };
-  } catch (err) {
-    throw new Error(`Failed to get diff stats: ${err.message}`);
-  }
-}
-

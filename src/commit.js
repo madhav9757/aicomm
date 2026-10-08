@@ -23,7 +23,7 @@ export async function commitChanges(message) {
   }
 }
 
-export async function pushToRemote() {
+export async function pushToRemote({ setUpstream = false } = {}) {
   let currentBranch;
 
   try {
@@ -41,7 +41,11 @@ export async function pushToRemote() {
 
     const remoteName = remotes.find((r) => r.name === "origin") ? "origin" : remotes[0].name;
 
-    await git.push(remoteName, currentBranch);
+    if (setUpstream || !status.tracking) {
+      await git.push(["--set-upstream", remoteName, currentBranch]);
+    } else {
+      await git.push(remoteName, currentBranch);
+    }
   } catch (err) {
     if (err.message.includes("no upstream branch") || err.message.includes("has no upstream branch")) {
       const branchToShow = currentBranch || "YOUR_BRANCH";
