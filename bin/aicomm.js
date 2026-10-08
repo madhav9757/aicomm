@@ -184,8 +184,34 @@ async function run(options = {}) {
     while (true) {
       if (isAiEnabled) {
         spinner.start(pc.magenta(`AI is thinking...`));
-        aiMessage = await generateCommitMessage(diff, options, spinner);
-        spinner.succeed(pc.green("AI suggestion ready"));
+        try {
+          aiMessage = await generateCommitMessage(diff, options, spinner);
+          spinner.succeed(pc.green("AI suggestion ready"));
+        } catch (err) {
+          spinner.fail(pc.red("AI generation failed"));
+          console.error(`${pc.red(figures.cross)} ${err.message}`);
+
+          const { aiAction } = await inquirer.prompt([
+            {
+              type: "list",
+              name: "aiAction",
+              message: "How would you like to proceed?",
+              choices: [
+                { name: "🔄 Retry AI generation", value: "retry" },
+                { name: "📝 Use fallback message (chore: update files)", value: "fallback" },
+                { name: "❌ Abort commit", value: "abort" },
+              ],
+            },
+          ]);
+
+          if (aiAction === "retry") {
+            continue;
+          }
+          if (aiAction === "abort") {
+            process.exit(1);
+          }
+          aiMessage = "chore: update files";
+        }
       }
 
       finalMessage = await askCommitMessage(aiMessage, { allowRegenerate: isAiEnabled });

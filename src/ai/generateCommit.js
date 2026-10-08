@@ -83,6 +83,6 @@ RULES:
     console.error(pc.red(`\nError: ${errorMessage}`));
     if (err.stack && options.verbose) console.error(pc.dim(err.stack));
 
-    return "chore: update files (fallback)";
+    throw new Error(errorMessage);
   }
 }

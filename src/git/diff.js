@@ -131,8 +131,21 @@ export function parseDiffIntoFiles(rawDiff) {
   return fileChunks;
 }
 
-export function getUntrackedFileBlocks(untrackedFiles = []) {
+export async function getUntrackedFileBlocks(untrackedFiles = []) {
   if (!untrackedFiles || untrackedFiles.length === 0) return [];
+
+  let repoRoot = null;
+  try {
+    repoRoot = (await git.revparse(["--show-toplevel"])).trim();
+  } catch {
+    repoRoot = null;
+  }
+
+  const resolveReadablePath = (p) => {
+    const candidates = [path.resolve(process.cwd(), p)];
+    if (repoRoot) candidates.push(path.resolve(repoRoot, p));
+    return candidates.find((c) => fs.existsSync(c)) || candidates[0];
+  };
 
   const blocks = [];
 
@@ -158,8 +171,9 @@ export function getUntrackedFileBlocks(untrackedFiles = []) {
     }
 
     try {
-      if (!fs.existsSync(filePath)) continue;
-      const stats = fs.statSync(filePath);
+      const fullPath = resolveReadablePath(filePath);
+      if (!fs.existsSync(fullPath)) continue;
+      const stats = fs.statSync(fullPath);
       if (stats.isDirectory()) continue;
 
       if (stats.size > 200 * 1024) {
@@ -176,7 +190,7 @@ export function getUntrackedFileBlocks(untrackedFiles = []) {
         continue;
       }
 
-      const content = fs.readFileSync(filePath, "utf8");
+      const content = fs.readFileSync(fullPath, "utf8");
       if (content.includes("\0")) {
         const line = `[New binary file - omitted from diff]`;
         blocks.push({
@@ -288,8 +302,8 @@ export function buildChangesSummaryHeader(diffSummaryFiles = [], untrackedBlocks
   return lines.join("\n");
 }
 
-export function generateUntrackedDiff(untrackedFiles = []) {
-  const blocks = getUntrackedFileBlocks(untrackedFiles);
+export async function generateUntrackedDiff(untrackedFiles = []) {
+  const blocks = await getUntrackedFileBlocks(untrackedFiles);
   return blocks.map((b) => b.content).join("\n\n");
 }
 
@@ -330,7 +344,7 @@ export async function getGitDiff(options = {}) {
         filesToInspect = status.not_added;
       }
       if (filesToInspect && filesToInspect.length > 0) {
-        untrackedBlocks = getUntrackedFileBlocks(filesToInspect);
+        untrackedBlocks = await getUntrackedFileBlocks(filesToInspect);
       }
     }
 
