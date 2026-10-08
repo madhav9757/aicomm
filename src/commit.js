@@ -7,11 +7,12 @@ export async function commitChanges(message) {
     const status = await git.status();
 
     if (status.staged.length === 0) {
-      if (!status.isClean()) {
-        await git.add(".");
-      } else {
+      if (status.isClean()) {
         throw new Error("No changes detected in the repository to commit.");
       }
+      throw new Error(
+        "No files staged. Stage changes first (use -s/--stage-all or select files) instead of committing everything blindly."
+      );
     }
 
     await git.commit(message);

@@ -227,7 +227,9 @@ export function budgetAndFormatDiffs(fileBlocks, maxLines = 300) {
 
   const activeBlocks = fileBlocks.filter((b) => !b.ignored);
   if (activeBlocks.length === 0) {
-    return fileBlocks.map((b) => b.content).join("\n\n");
+    // Never send ignored content (lockfiles, binaries, etc.) to the AI —
+    // the summary header already describes these files.
+    return "";
   }
 
   const totalActiveLines = activeBlocks.reduce((sum, b) => sum + b.lineCount, 0);

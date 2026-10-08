@@ -1,23 +1,29 @@
 import inquirer from "inquirer";
 import pc from "picocolors";
 
-export async function askCommitMessage(aiMessage) {
+export async function askCommitMessage(aiMessage, { allowRegenerate = true } = {}) {
   console.log(`\n${pc.bold(pc.cyan("🤖 AI Suggested Commit Message:"))}`);
   console.log(pc.dim("─".repeat(50)));
   console.log(pc.bold(pc.white(aiMessage)));
   console.log(pc.dim("─".repeat(50)) + "\n");
+
+  const choices = [
+    { name: `✅ ${pc.bold("Use this message")}`, value: "use" },
+    { name: `📝 ${pc.bold("Edit message")}`, value: "edit" },
+  ];
+
+  if (allowRegenerate) {
+    choices.push({ name: `🔄 ${pc.bold("Regenerate message")}`, value: "regenerate" });
+  }
+
+  choices.push({ name: `❌ ${pc.bold("Abort commit")}`, value: "abort" });
 
   const { action } = await inquirer.prompt([
     {
       type: "list",
       name: "action",
       message: "What would you like to do?",
-      choices: [
-        { name: `✅ ${pc.bold("Use this message")}`, value: "use" },
-        { name: `📝 ${pc.bold("Edit message")}`, value: "edit" },
-        { name: `🔄 ${pc.bold("Regenerate message")}`, value: "regenerate" },
-        { name: `❌ ${pc.bold("Abort commit")}`, value: "abort" },
-      ],
+      choices,
     },
   ]);
 

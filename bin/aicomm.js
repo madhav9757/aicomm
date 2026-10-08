@@ -188,9 +188,14 @@ async function run(options = {}) {
         spinner.succeed(pc.green("AI suggestion ready"));
       }
 
-      finalMessage = await askCommitMessage(aiMessage);
+      finalMessage = await askCommitMessage(aiMessage, { allowRegenerate: isAiEnabled });
 
       if (finalMessage === "regenerate") {
+        if (!isAiEnabled) {
+          console.log(pc.yellow("Regeneration is unavailable without AI. Use edit instead."));
+          finalMessage = aiMessage;
+          break;
+        }
         console.log(pc.dim("\nRetrying generation..."));
         continue;
       }
