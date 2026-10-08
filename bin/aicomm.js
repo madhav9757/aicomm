@@ -10,7 +10,7 @@ import figures from "figures";
 
 import { getGitStatus } from "../src/git/status.js";
 import { getGitDiff } from "../src/git/diff.js";
-import { generateCommitMessage } from "../src/ai/generateCommit.js";
+import { generateCommitMessage, FALLBACK_COMMIT_MESSAGE } from "../src/ai/generateCommit.js";
 import { askCommitMessage, selectFiles } from "../src/ui/prompt.js";
 import { commitChanges, pushToRemote, stageFiles } from "../src/commit.js";
 import { getApiKey, saveApiKey, getMaskedApiKey, getConfigPath } from "../src/utils/config.js";
@@ -179,7 +179,7 @@ async function run(options = {}) {
     }
 
     let finalMessage;
-    let aiMessage = "chore: update files";
+    let aiMessage = FALLBACK_COMMIT_MESSAGE;
 
     while (true) {
       if (isAiEnabled) {
@@ -210,7 +210,7 @@ async function run(options = {}) {
           if (aiAction === "abort") {
             process.exit(1);
           }
-          aiMessage = "chore: update files";
+          aiMessage = FALLBACK_COMMIT_MESSAGE;
         }
       }
 

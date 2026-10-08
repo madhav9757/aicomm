@@ -10,15 +10,12 @@ export const LOCK_FILES = new Set([
   "pnpm-lock.yaml",
   "bun.lockb",
   "composer.lock",
-  "Cargo.lock",
-  "Gemfile.lock",
+  "cargo.lock",
+  "gemfile.lock",
   "poetry.lock",
 ]);
 
 export const IGNORE_EXTENSIONS = new Set([
-  ".min.js",
-  ".min.css",
-  ".bundle.js",
   ".map",
   ".svg",
   ".png",
@@ -68,7 +65,7 @@ export function getFileIgnoreStatus(filePath) {
   const normalized = filePath.replace(/\\/g, "/");
   const fileName = path.basename(normalized);
 
-  if (LOCK_FILES.has(fileName)) {
+  if (LOCK_FILES.has(fileName.toLowerCase())) {
     return { ignored: true, reason: "Lockfile" };
   }
 
@@ -100,14 +97,24 @@ export function parseDiffIntoFiles(rawDiff) {
   for (const block of rawBlocks) {
     if (!block.trim()) continue;
 
-    const gitDiffMatch = block.match(/^diff --git a\/(.+?)\s+b\/(.+)$/m);
+    const headerMatch = block.match(/^diff --git (.+)$/m);
     let filePath = "";
-    if (gitDiffMatch) {
-      filePath = gitDiffMatch[2].trim();
-    } else {
-      const plusMatch = block.match(/^\+\+\+\s+b\/(.+)$/m);
+    if (headerMatch) {
+      // Handles both: diff --git a/x b/x  and  diff --git "a/x y" "b/x y"
+      const tokenRe = /"((?:\\.|[^"])+)"|(\S+)/g;
+      const tokens = [];
+      let m;
+      while ((m = tokenRe.exec(headerMatch[1])) !== null && tokens.length < 2) {
+        tokens.push(m[1] ?? m[2]);
+      }
+      const bToken = tokens.find((t) => t.startsWith("b/")) || tokens[1];
+      if (bToken) filePath = bToken.replace(/^b\//, "");
+    }
+
+    if (!filePath) {
+      const plusMatch = block.match(/^\+\+\+\s+"?(b\/(?:[^"\n]+))"?$/m);
       if (plusMatch) {
-        filePath = plusMatch[1].trim();
+        filePath = plusMatch[1].replace(/^b\//, "");
       }
     }
 

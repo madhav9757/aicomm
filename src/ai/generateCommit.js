@@ -5,11 +5,13 @@ import { getApiKey } from "../utils/config.js";
 
 const DEFAULT_MODEL = 'gemini-3.6-flash';
 
+export const FALLBACK_COMMIT_MESSAGE = "chore: update files";
+
 export async function generateCommitMessage(diff, options = {}, spinner) {
   const { model = DEFAULT_MODEL } = options;
 
   if (!diff || diff.trim() === "") {
-    return "chore: update files";
+    return FALLBACK_COMMIT_MESSAGE;
   }
 
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || getApiKey() || "").trim();
